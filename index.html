@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>图像声音化 · Image Sonification</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-orbs">
+    <div class="orb orb1"></div>
+    <div class="orb orb2"></div>
+    <div class="orb orb3"></div>
+  </div>
+
+  <header>
+    <h1><span class="icon">♫</span> 图像声音化</h1>
+    <p class="subtitle">将图像的色彩转化为音乐</p>
+  </header>
+
+  <main>
+    <!-- Upload zone -->
+    <div id="upload-zone" class="upload-zone">
+      <div class="upload-icon">🎨</div>
+      <p class="upload-text">拖拽图片到这里，或点击上传</p>
+      <p class="upload-hint">支持 JPG、PNG、GIF、WebP</p>
+      <input type="file" id="file-input" accept="image/*" hidden />
+      <div class="sample-images">
+        <p>或者尝试示例图片：</p>
+        <div class="sample-btns">
+          <button class="sample-btn" data-src="sample-gradient.png">渐变</button>
+          <button class="sample-btn" data-src="sample-sunset.png">日落</button>
+          <button class="sample-btn" data-src="sample-ocean.png">海洋</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Workspace (shown after image load) -->
+    <div id="workspace" class="workspace hidden">
+      <div class="canvas-wrapper">
+        <canvas id="main-canvas"></canvas>
+        <canvas id="overlay-canvas"></canvas>
+        <div id="scan-line"></div>
+      </div>
+
+      <div class="visualizer-bar">
+        <canvas id="viz-canvas"></canvas>
+      </div>
+
+      <div class="controls">
+        <div class="control-group">
+          <button id="play-btn" class="btn-play" title="播放/暂停">
+            <span class="play-icon">▶</span>
+          </button>
+          <button id="stop-btn" class="btn-stop" title="停止">
+            <span>■</span>
+          </button>
+          <button id="change-btn" class="btn-change" title="更换图片">↩ 换图</button>
+        </div>
+
+        <div class="control-group sliders">
+          <label>
+            <span>速度</span>
+            <input type="range" id="speed-slider" min="1" max="10" value="4" />
+            <span id="speed-val">4</span>
+          </label>
+          <label>
+            <span>音量</span>
+            <input type="range" id="volume-slider" min="0" max="100" value="70" />
+            <span id="volume-val">70%</span>
+          </label>
+        </div>
+
+        <div class="control-group selects">
+          <label>
+            <span>音阶</span>
+            <select id="scale-select">
+              <option value="pentatonic">五声音阶</option>
+              <option value="major">大调</option>
+              <option value="minor">自然小调</option>
+              <option value="chromatic">半音阶</option>
+              <option value="blues">蓝调</option>
+            </select>
+          </label>
+          <label>
+            <span>音色</span>
+            <select id="synth-select">
+              <option value="piano">钢琴</option>
+              <option value="synth">合成器</option>
+              <option value="marimba">马林巴</option>
+              <option value="pad">弦乐垫</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="info-bar">
+        <span id="info-time">00:00</span>
+        <span id="info-pos">列 0 / 0</span>
+        <span id="info-note">--</span>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>每一列像素对应一个时间片 · 纵向位置决定音高 · 亮度决定音量 · 色调决定音色</p>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
