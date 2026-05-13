@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>图像声音化 · Image Sonification</title>
+  <style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0a0a14;
+  --surface: rgba(255,255,255,0.05);
+  --surface2: rgba(255,255,255,0.08);
+  --border: rgba(255,255,255,0.1);
+  --accent: #7c3aed;
+  --accent2: #06b6d4;
+  --accent3: #f59e0b;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --radius: 12px;
+  --radius-lg: 20px;
+}
+html, body {
+  height: 100%;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+}
+.bg-orbs { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.25; animation: float 12s ease-in-out infinite; }
+.orb1 { width: 500px; height: 500px; background: radial-gradient(circle, #7c3aed, transparent); top: -100px; left: -150px; animation-delay: 0s; }
+.orb2 { width: 400px; height: 400px; background: radial-gradient(circle, #06b6d4, transparent); bottom: -80px; right: -100px; animation-delay: -4s; }
+.orb3 { width: 300px; height: 300px; background: radial-gradient(circle, #f59e0b, transparent); top: 40%; left: 50%; transform: translate(-50%, -50%); animation-delay: -8s; }
+@keyframes float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-30px) scale(1.05); } }
+.orb3 { animation: float3 12s ease-in-out infinite; animation-delay: -8s; }
+@keyframes float3 { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -58%) scale(1.05); } }
+header { position: relative; z-index: 1; text-align: center; padding: 48px 24px 24px; }
+header h1 { font-size: 2.8rem; font-weight: 800; background: linear-gradient(135deg, #a78bfa, #06b6d4, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: -1px; }
+header h1 .icon { -webkit-text-fill-color: initial; background: none; margin-right: 8px; }
+.subtitle { margin-top: 8px; color: var(--text-muted); font-size: 1rem; }
+main { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 0 24px 48px; }
+footer { position: relative; z-index: 1; text-align: center; padding: 24px; color: var(--text-muted); font-size: 0.8rem; border-top: 1px solid var(--border); }
+.upload-zone { border: 2px dashed var(--border); border-radius: var(--radius-lg); background: var(--surface); backdrop-filter: blur(12px); padding: 64px 32px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; position: relative; }
+.upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: rgba(124,58,237,0.1); }
+.upload-icon { font-size: 4rem; margin-bottom: 16px; }
+.upload-text { font-size: 1.2rem; font-weight: 600; margin-bottom: 8px; }
+.upload-hint { color: var(--text-muted); font-size: 0.875rem; }
+.sample-images { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border); }
+.sample-images p { color: var(--text-muted); font-size: 0.875rem; margin-bottom: 12px; }
+.sample-btns { display: flex; gap: 8px; justify-content: center; }
+.sample-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 8px 20px; cursor: pointer; font-size: 0.875rem; transition: background 0.2s, border-color 0.2s; }
+.sample-btn:hover { background: rgba(124,58,237,0.25); border-color: var(--accent); }
+.workspace { display: flex; flex-direction: column; gap: 16px; }
+.hidden { display: none !important; }
+.canvas-wrapper { position: relative; border-radius: var(--radius-lg); overflow: hidden; background: #000; border: 1px solid var(--border); max-height: 420px; display: flex; align-items: center; justify-content: center; }
+#main-canvas { display: block; max-width: 100%; max-height: 420px; object-fit: contain; }
+#overlay-canvas { position: absolute; inset: 0; pointer-events: none; }
+#scan-line { position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: linear-gradient(to bottom, #7c3aed, #06b6d4); box-shadow: 0 0 12px #7c3aed, 0 0 24px #06b6d4; pointer-events: none; transform: translateX(-10px); transition: none; opacity: 0; z-index: 2; }
+#scan-line.active { opacity: 1; }
+.visualizer-bar { border-radius: var(--radius); overflow: hidden; background: rgba(0,0,0,0.4); border: 1px solid var(--border); height: 80px; }
+#viz-canvas { width: 100%; height: 80px; display: block; }
+.controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; background: var(--surface); backdrop-filter: blur(12px); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px 24px; }
+.control-group { display: flex; align-items: center; gap: 10px; }
+.btn-play, .btn-stop, .btn-change { border: none; border-radius: 50px; cursor: pointer; font-size: 1rem; font-weight: 600; padding: 12px 24px; transition: transform 0.1s, opacity 0.1s, box-shadow 0.2s; }
+.btn-play { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; box-shadow: 0 4px 20px rgba(124,58,237,0.4); min-width: 110px; }
+.btn-play:hover { box-shadow: 0 6px 28px rgba(124,58,237,0.6); transform: translateY(-1px); }
+.btn-play:active { transform: translateY(0); }
+.btn-stop { background: rgba(255,255,255,0.08); color: var(--text); border: 1px solid var(--border); }
+.btn-stop:hover { background: rgba(255,255,255,0.14); }
+.btn-change { background: transparent; color: var(--text-muted); border: 1px solid var(--border); font-size: 0.875rem; padding: 10px 18px; }
+.btn-change:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
+.play-icon { font-style: normal; }
+.sliders, .selects { flex: 1; flex-wrap: wrap; gap: 16px; }
+.sliders label, .selects label { display: flex; align-items: center; gap: 10px; font-size: 0.875rem; color: var(--text-muted); white-space: nowrap; }
+input[type=range] { -webkit-appearance: none; width: 100px; height: 4px; background: var(--border); border-radius: 2px; outline: none; cursor: pointer; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px rgba(124,58,237,0.6); cursor: pointer; }
+input[type=range]:hover { background: rgba(255,255,255,0.2); }
+select { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 6px 12px; font-size: 0.875rem; cursor: pointer; outline: none; transition: border-color 0.2s; }
+select:focus { border-color: var(--accent); }
+select option { background: #1a1a2e; }
+.info-bar { display: flex; gap: 24px; justify-content: center; font-size: 0.8rem; color: var(--text-muted); font-family: 'Courier New', monospace; padding: 8px; }
+.info-bar span { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 12px; }
+@media (max-width: 600px) {
+  header h1 { font-size: 1.8rem; }
+  .controls { padding: 16px; }
+  .control-group { width: 100%; }
+  input[type=range] { width: 80px; }
+  .btn-play { min-width: 90px; }
+}
+  </style>
+</head>
+<body>
+  <div class="bg-orbs">
+    <div class="orb orb1"></div>
+    <div class="orb orb2"></div>
+    <div class="orb orb3"></div>
+  </div>
+  <header>
+    <h1><span class="icon">♫</span> 图像声音化</h1>
+    <p class="subtitle">将图像的色彩转化为音乐</p>
+  </header>
+  <main>
+    <div id="upload-zone" class="upload-zone">
+      <div class="upload-icon">🎨</div>
+      <p class="upload-text">拖拽图片到这里，或点击上传</p>
+      <p class="upload-hint">支持 JPG、PNG、GIF、WebP</p>
+      <input type="file" id="file-input" accept="image/*" hidden />
+      <div class="sample-images">
+        <p>或者尝试示例图片：</p>
+        <div class="sample-btns">
+          <button class="sample-btn" data-src="sample-gradient.png">渐变</button>
+          <button class="sample-btn" data-src="sample-sunset.png">日落</button>
+          <button class="sample-btn" data-src="sample-ocean.png">海洋</button>
+        </div>
+      </div>
+    </div>
+    <div id="workspace" class="workspace hidden">
+      <div class="canvas-wrapper">
+        <canvas id="main-canvas"></canvas>
+        <canvas id="overlay-canvas"></canvas>
+        <div id="scan-line"></div>
+      </div>
+      <div class="visualizer-bar"><canvas id="viz-canvas"></canvas></div>
+      <div class="controls">
+        <div class="control-group">
+          <button id="play-btn" class="btn-play"><span class="play-icon">▶</span> 播放</button>
+          <button id="stop-btn" class="btn-stop"><span>■</span></button>
+          <button id="change-btn" class="btn-change">↩ 换图</button>
+        </div>
+        <div class="control-group sliders">
+          <label><span>速度</span><input type="range" id="speed-slider" min="1" max="10" value="4" /><span id="speed-val">4</span></label>
+          <label><span>音量</span><input type="range" id="volume-slider" min="0" max="100" value="70" /><span id="volume-val">70%</span></label>
+        </div>
+        <div class="control-group selects">
+          <label><span>音阶</span>
+            <select id="scale-select">
+              <option value="pentatonic">五声音阶</option>
+              <option value="major">大调</option>
+              <option value="minor">自然小调</option>
+              <option value="chromatic">半音阶</option>
+              <option value="blues">蓝调</option>
+            </select>
+          </label>
+          <label><span>音色</span>
+            <select id="synth-select">
+              <option value="piano">钢琴</option>
+              <option value="synth">合成器</option>
+              <option value="marimba">马林巴</option>
+              <option value="pad">弦乐垫</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="info-bar">
+        <span id="info-time">00:00</span>
+        <span id="info-pos">列 0 / 0</span>
+        <span id="info-note">--</span>
+      </div>
+    </div>
+  </main>
+  <footer><p>每一列像素对应一个时间片 · 纵向位置决定音高 · 亮度决定音量 · 色调决定音色</p></footer>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script>
+const SCALES={pentatonic:[0,2,4,7,9],major:[0,2,4,5,7,9,11],minor:[0,2,3,5,7,8,10],chromatic:[0,1,2,3,4,5,6,7,8,9,10,11],blues:[0,3,5,6,7,10]};
+function midiToName(m){return['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'][m%12]+Math.floor(m/12-1);}
+function valueToNote(v,s,mn=3,mx=6){const sc=SCALES[s],t=sc.length*(mx-mn+1),i=Math.round(v*(t-1)),o=mn+Math.floor(i/sc.length),semi=sc[i%sc.length],midi=(o+1)*12+semi;return{name:midiToName(midi),midi};}
+function createSynth(t){switch(t){case'piano':return new Tone.PolySynth(Tone.Synth,{oscillator:{type:'triangle'},envelope:{attack:0.02,decay:0.5,sustain:0.1,release:1.2}}).toDestination();case'synth':return new Tone.PolySynth(Tone.Synth,{oscillator:{type:'sawtooth'},envelope:{attack:0.05,decay:0.2,sustain:0.4,release:0.8}}).toDestination();case'marimba':return new Tone.PolySynth(Tone.Synth,{oscillator:{type:'sine'},envelope:{attack:0.005,decay:0.3,sustain:0,release:0.4}}).toDestination();case'pad':return new Tone.PolySynth(Tone.Synth,{oscillator:{type:'sine'},envelope:{attack:0.4,decay:0.3,sustain:0.7,release:2}}).toDestination();default:return new Tone.PolySynth(Tone.Synth).toDestination();}}
+const uploadZone=document.getElementById('upload-zone'),fileInput=document.getElementById('file-input'),workspace=document.getElementById('workspace'),mainCanvas=document.getElementById('main-canvas'),overlayCanvas=document.getElementById('overlay-canvas'),vizCanvas=document.getElementById('viz-canvas'),scanLine=document.getElementById('scan-line'),playBtn=document.getElementById('play-btn'),stopBtn=document.getElementById('stop-btn'),changeBtn=document.getElementById('change-btn'),speedSlider=document.getElementById('speed-slider'),volumeSlider=document.getElementById('volume-slider'),scaleSelect=document.getElementById('scale-select'),synthSelect=document.getElementById('synth-select'),speedVal=document.getElementById('speed-val'),volumeVal=document.getElementById('volume-val'),infoTime=document.getElementById('info-time'),infoPos=document.getElementById('info-pos'),infoNote=document.getElementById('info-note');
+const ctx=mainCanvas.getContext('2d',{willReadFrequently:true}),octx=overlayCanvas.getContext('2d'),vctx=vizCanvas.getContext('2d');
+let imgData=null,imgW=0,imgH=0,isPlaying=false,currentCol=0,synth=null,analyser=null,animFrame=null,stepInterval=null,startTime=0,elapsedMs=0;
+uploadZone.addEventListener('click',()=>fileInput.click());
+uploadZone.addEventListener('dragover',e=>{e.preventDefault();uploadZone.classList.add('drag-over');});
+uploadZone.addEventListener('dragleave',()=>uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop',e=>{e.preventDefault();uploadZone.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/'))loadImageFile(f);});
+fileInput.addEventListener('change',()=>{if(fileInput.files[0])loadImageFile(fileInput.files[0]);});
+document.querySelectorAll('.sample-btn').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();loadSampleImage(b.dataset.src);}));
+function loadSampleImage(type){const c2=document.createElement('canvas');c2.width=400;c2.height=200;const c=c2.getContext('2d');if(type==='sample-gradient.png'){const g=c.createLinearGradient(0,0,400,200);g.addColorStop(0,'#7c3aed');g.addColorStop(0.33,'#06b6d4');g.addColorStop(0.66,'#f59e0b');g.addColorStop(1,'#ef4444');c.fillStyle=g;c.fillRect(0,0,400,200);for(let i=0;i<3000;i++){c.fillStyle=`rgba(255,255,255,${Math.random()*0.3})`;c.fillRect(Math.random()*400,Math.random()*200,2,2);}}else if(type==='sample-sunset.png'){const sky=c.createLinearGradient(0,0,0,200);sky.addColorStop(0,'#1a0533');sky.addColorStop(0.4,'#c2410c');sky.addColorStop(0.7,'#f59e0b');sky.addColorStop(1,'#fbbf24');c.fillStyle=sky;c.fillRect(0,0,400,200);const rad=c.createRadialGradient(200,160,0,200,160,60);rad.addColorStop(0,'rgba(255,255,200,0.9)');rad.addColorStop(1,'rgba(255,150,0,0)');c.fillStyle=rad;c.fillRect(0,0,400,200);const hor=c.createLinearGradient(0,140,0,200);hor.addColorStop(0,'rgba(251,191,36,0.5)');hor.addColorStop(1,'rgba(120,53,15,0.8)');c.fillStyle=hor;c.fillRect(0,140,400,60);}else if(type==='sample-ocean.png'){const oc=c.createLinearGradient(0,0,400,200);oc.addColorStop(0,'#0c4a6e');oc.addColorStop(0.5,'#0369a1');oc.addColorStop(1,'#06b6d4');c.fillStyle=oc;c.fillRect(0,0,400,200);c.strokeStyle='rgba(255,255,255,0.3)';c.lineWidth=2;for(let y=20;y<200;y+=25){c.beginPath();for(let x=0;x<=400;x+=10){const wy=y+Math.sin((x+y*3)*0.05)*8;x===0?c.moveTo(x,wy):c.lineTo(x,wy);}c.stroke();}}c2.toBlob(blob=>loadImageFile(blob));}
+function loadImageFile(file){const url=URL.createObjectURL(file);const img=new Image();img.onload=()=>{const maxW=800,maxH=420;let w=img.naturalWidth,h=img.naturalHeight;const scale=Math.min(maxW/w,maxH/h,1);w=Math.round(w*scale);h=Math.round(h*scale);mainCanvas.width=w;mainCanvas.height=h;overlayCanvas.width=w;overlayCanvas.height=h;vizCanvas.width=vizCanvas.offsetWidth||800;vizCanvas.height=80;ctx.drawImage(img,0,0,w,h);imgData=ctx.getImageData(0,0,w,h);imgW=w;imgH=h;URL.revokeObjectURL(url);uploadZone.classList.add('hidden');workspace.classList.remove('hidden');stopPlayback();};img.src=url;}
+async function ensureAudio(){await Tone.start();if(synth){synth.dispose();synth=null;}synth=createSynth(synthSelect.value);synth.volume.value=Tone.gainToDb(parseInt(volumeSlider.value)/100);analyser=new Tone.Analyser('waveform',256);synth.connect(analyser);}
+playBtn.addEventListener('click',async()=>{if(!imgData)return;isPlaying?pausePlayback():await startPlayback();});
+stopBtn.addEventListener('click',stopPlayback);
+changeBtn.addEventListener('click',()=>{stopPlayback();workspace.classList.add('hidden');uploadZone.classList.remove('hidden');fileInput.value='';});
+async function startPlayback(){await ensureAudio();isPlaying=true;playBtn.innerHTML='<span class="play-icon">⏸</span> 暂停';scanLine.classList.add('active');startTime=performance.now()-elapsedMs;scheduleStep();drawVisualizer();}
+function pausePlayback(){isPlaying=false;elapsedMs=performance.now()-startTime;playBtn.innerHTML='<span class="play-icon">▶</span> 播放';clearTimeout(stepInterval);cancelAnimationFrame(animFrame);if(synth)synth.releaseAll();}
+function stopPlayback(){isPlaying=false;elapsedMs=0;currentCol=0;playBtn.innerHTML='<span class="play-icon">▶</span> 播放';clearTimeout(stepInterval);cancelAnimationFrame(animFrame);if(synth){synth.releaseAll();synth.dispose();synth=null;}scanLine.style.transform='translateX(-10px)';scanLine.classList.remove('active');if(octx)octx.clearRect(0,0,overlayCanvas.width,overlayCanvas.height);infoTime.textContent='00:00';infoPos.textContent='列 0 / 0';infoNote.textContent='--';}
+function scheduleStep(){if(!isPlaying)return;processColumn(currentCol);currentCol++;if(currentCol>=imgW){currentCol=0;elapsedMs=0;startTime=performance.now();}stepInterval=setTimeout(scheduleStep,Math.round(300/parseInt(speedSlider.value)));}
+function processColumn(col){if(!imgData)return;const data=imgData.data,scaleName=scaleSelect.value,step=Math.max(1,Math.floor(imgH/16)),notes=[],volumes=[];for(let row=0;row<imgH;row+=step){const i=(row*imgW+col)*4,{l}=rgbToHsl(data[i],data[i+1],data[i+2]);if(l<0.12)continue;notes.push(valueToNote(1-(row/imgH),scaleName,3,6));volumes.push(0.2+l*0.8);}const seen=new Set(),unique=[];for(let i=0;i<notes.length;i++){if(!seen.has(notes[i].name)){seen.add(notes[i].name);unique.push({note:notes[i],vol:volumes[i]});}}if(!unique.length)return;unique.sort((a,b)=>b.vol-a.vol);const chord=unique.slice(0,4),dur=Math.round(300/parseInt(speedSlider.value))/1000*1.2;chord.forEach(({note,vol})=>{try{synth.triggerAttackRelease(note.name,dur,Tone.now(),vol);}catch{}});const wrapper=document.querySelector('.canvas-wrapper'),x=(wrapper.offsetWidth-mainCanvas.offsetWidth)/2+(col/imgW)*mainCanvas.offsetWidth;scanLine.style.transform=`translateX(${x}px)`;octx.clearRect(0,0,imgW,imgH);octx.fillStyle='rgba(255,255,255,0.15)';octx.fillRect(col,0,1,imgH);chord.forEach(({note,vol})=>{const py=(1-(note.midi-36)/48)*imgH;octx.beginPath();octx.arc(col,py,4,0,Math.PI*2);octx.fillStyle=`rgba(124,58,237,${vol})`;octx.fill();octx.strokeStyle='rgba(255,255,255,0.8)';octx.lineWidth=1;octx.stroke();});const ms=performance.now()-startTime,s=Math.floor(ms/1000),m=Math.floor(s/60);infoTime.textContent=`${String(m).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;infoPos.textContent=`列 ${col+1} / ${imgW}`;infoNote.textContent=chord[0]?.note?.name||'--';}
+function drawVisualizer(){if(!isPlaying)return;animFrame=requestAnimationFrame(drawVisualizer);vizCanvas.width=vizCanvas.offsetWidth;const W=vizCanvas.width,H=vizCanvas.height;vctx.clearRect(0,0,W,H);if(!analyser)return;const wave=analyser.getValue();vctx.fillStyle='rgba(0,0,0,0.3)';vctx.fillRect(0,0,W,H);const grad=vctx.createLinearGradient(0,0,W,0);grad.addColorStop(0,'#7c3aed');grad.addColorStop(0.5,'#06b6d4');grad.addColorStop(1,'#f59e0b');vctx.strokeStyle=grad;vctx.lineWidth=2;vctx.beginPath();for(let i=0;i<wave.length;i++){const x=(i/wave.length)*W,y=((wave[i]+1)/2)*H;i===0?vctx.moveTo(x,y):vctx.lineTo(x,y);}vctx.stroke();vctx.globalAlpha=0.3;vctx.beginPath();for(let i=0;i<wave.length;i++){const x=(i/wave.length)*W,y=H-((wave[i]+1)/2)*H;i===0?vctx.moveTo(x,y):vctx.lineTo(x,y);}vctx.stroke();vctx.globalAlpha=1;}
+speedSlider.addEventListener('input',()=>speedVal.textContent=speedSlider.value);
+volumeSlider.addEventListener('input',()=>{volumeVal.textContent=volumeSlider.value+'%';if(synth)synth.volume.value=Tone.gainToDb(parseInt(volumeSlider.value)/100);});
+scaleSelect.addEventListener('change',()=>currentCol=0);
+synthSelect.addEventListener('change',async()=>{if(isPlaying){pausePlayback();await ensureAudio();await startPlayback();}});
+window.addEventListener('resize',()=>vizCanvas.width=vizCanvas.offsetWidth);
+function rgbToHsl(r,g,b){r/=255;g/=255;b/=255;const max=Math.max(r,g,b),min=Math.min(r,g,b);let h=0,s=0,l=(max+min)/2;if(max!==min){const d=max-min;s=l>0.5?d/(2-max-min):d/(max+min);switch(max){case r:h=((g-b)/d+(g<b?6:0))/6;break;case g:h=((b-r)/d+2)/6;break;case b:h=((r-g)/d+4)/6;break;}}return{h,s,l};}
+  </script>
+</body>
+</html>
