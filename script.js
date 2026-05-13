@@ -98,9 +98,7 @@ let stepInterval = null;
 let startTime    = 0;
 let elapsedMs    = 0;
 
-// Sample step: how many image columns to skip per step
-// (thinner = more resolution, but slower playback)
-const SAMPLE_ROWS = 16;   // sample at most N rows per column
+const SAMPLE_ROWS = 16;
 const NOTE_DURATION = '8n';
 
 // ─── Upload handling ─────────────────────────────────────────
@@ -117,7 +115,6 @@ fileInput.addEventListener('change', () => {
   if (fileInput.files[0]) loadImageFile(fileInput.files[0]);
 });
 
-// Sample images: generate them procedurally as data URLs
 document.querySelectorAll('.sample-btn').forEach(btn => {
   btn.addEventListener('click', e => {
     e.stopPropagation();
@@ -139,13 +136,11 @@ function loadSampleImage(type) {
     g.addColorStop(1, '#ef4444');
     c.fillStyle = g;
     c.fillRect(0, 0, 400, 200);
-    // Add some noise
     for (let i = 0; i < 3000; i++) {
       c.fillStyle = `rgba(255,255,255,${Math.random() * 0.3})`;
       c.fillRect(Math.random()*400, Math.random()*200, 2, 2);
     }
   } else if (type === 'sample-sunset.png') {
-    // Sky gradient
     const sky = c.createLinearGradient(0, 0, 0, 200);
     sky.addColorStop(0, '#1a0533');
     sky.addColorStop(0.4, '#c2410c');
@@ -153,13 +148,11 @@ function loadSampleImage(type) {
     sky.addColorStop(1, '#fbbf24');
     c.fillStyle = sky;
     c.fillRect(0, 0, 400, 200);
-    // Sun
     const radial = c.createRadialGradient(200, 160, 0, 200, 160, 60);
     radial.addColorStop(0, 'rgba(255,255,200,0.9)');
     radial.addColorStop(1, 'rgba(255,150,0,0)');
     c.fillStyle = radial;
     c.fillRect(0, 0, 400, 200);
-    // Horizon glow
     const hor = c.createLinearGradient(0, 140, 0, 200);
     hor.addColorStop(0, 'rgba(251,191,36,0.5)');
     hor.addColorStop(1, 'rgba(120,53,15,0.8)');
@@ -172,7 +165,6 @@ function loadSampleImage(type) {
     ocean.addColorStop(1, '#06b6d4');
     c.fillStyle = ocean;
     c.fillRect(0, 0, 400, 200);
-    // Waves
     c.strokeStyle = 'rgba(255,255,255,0.3)';
     c.lineWidth = 2;
     for (let y = 20; y < 200; y += 25) {
@@ -192,7 +184,6 @@ function loadImageFile(file) {
   const url = URL.createObjectURL(file);
   const img = new Image();
   img.onload = () => {
-    // Draw to main canvas, capping size for performance
     const maxW = 800, maxH = 420;
     let w = img.naturalWidth, h = img.naturalHeight;
     const scale = Math.min(maxW / w, maxH / h, 1);
@@ -230,7 +221,6 @@ async function ensureAudio() {
   synth = createSynth(synthSelect.value);
   synth.volume.value = Tone.gainToDb(parseInt(volumeSlider.value) / 100);
 
-  // Analyser for waveform
   analyser = new Tone.Analyser('waveform', 256);
   synth.connect(analyser);
 }
@@ -299,7 +289,7 @@ function scheduleStep() {
   processColumn(currentCol);
   currentCol++;
   if (currentCol >= imgW) {
-    currentCol = 0; // loop
+    currentCol = 0;
     elapsedMs = 0;
     startTime = performance.now();
   }
@@ -308,7 +298,6 @@ function scheduleStep() {
 }
 
 function getStepMs() {
-  // speed slider 1-10 → 30ms to 300ms per column
   const speed = parseInt(speedSlider.value);
   return Math.round(300 / speed);
 }
@@ -318,7 +307,6 @@ function processColumn(col) {
   const data = imgData.data;
   const scaleName = scaleSelect.value;
 
-  // Sample rows evenly
   const step = Math.max(1, Math.floor(imgH / SAMPLE_ROWS));
   const notes = [];
   const volumes = [];
@@ -327,25 +315,20 @@ function processColumn(col) {
     const i = (row * imgW + col) * 4;
     const r = data[i], g = data[i+1], b = data[i+2];
 
-    // Convert RGB to HSL
     const { h, s, l } = rgbToHsl(r, g, b);
 
-    // Only play note if the pixel is bright enough (not too dark)
     const brightness = l;
     if (brightness < 0.12) continue;
 
-    // Y position [0..1] → pitch (bottom = low, top = high)
     const pitchRatio = 1 - (row / imgH);
     const note = valueToNote(pitchRatio, scaleName, 3, 6);
 
-    // Volume from brightness
     const vel = 0.2 + brightness * 0.8;
 
     notes.push(note);
     volumes.push(vel);
   }
 
-  // Deduplicate notes
   const seen = new Set();
   const uniqueNotes = [];
   for (let i = 0; i < notes.length; i++) {
@@ -357,11 +340,9 @@ function processColumn(col) {
 
   if (uniqueNotes.length === 0) return;
 
-  // Limit polyphony
   uniqueNotes.sort((a, b) => b.vol - a.vol);
   const chord = uniqueNotes.slice(0, 4);
 
-  // Trigger notes
   const duration = getStepMs() / 1000 * 1.2;
   chord.forEach(({ note, vol }) => {
     try {
@@ -369,7 +350,6 @@ function processColumn(col) {
     } catch {}
   });
 
-  // Update UI
   updateScanLine(col);
   updateColumnOverlay(col, chord);
   updateInfoBar(col, chord[0]?.note?.name);
@@ -386,16 +366,12 @@ function updateScanLine(col) {
 }
 
 function updateColumnOverlay(col, chord) {
-  // Flash the current column in overlay
   octx.clearRect(0, 0, imgW, imgH);
   const x = col;
 
-  // Highlight column
   octx.fillStyle = 'rgba(255,255,255,0.15)';
   octx.fillRect(x, 0, 1, imgH);
 
-  // Draw note indicators
-  const scaleName = scaleSelect.value;
   chord.forEach(({ note, vol }) => {
     const pitch = (note.midi - 36) / 48;
     const y = (1 - pitch) * imgH;
@@ -440,11 +416,9 @@ function drawVisualizer() {
   if (!analyser) return;
   const wave = analyser.getValue();
 
-  // Background
   vctx.fillStyle = 'rgba(0,0,0,0.3)';
   vctx.fillRect(0, 0, W, H);
 
-  // Draw waveform
   const grad = vctx.createLinearGradient(0, 0, W, 0);
   grad.addColorStop(0, '#7c3aed');
   grad.addColorStop(0.5, '#06b6d4');
@@ -459,7 +433,6 @@ function drawVisualizer() {
   }
   vctx.stroke();
 
-  // Mirror
   vctx.globalAlpha = 0.3;
   vctx.beginPath();
   for (let i = 0; i < wave.length; i++) {
@@ -484,7 +457,6 @@ volumeSlider.addEventListener('input', () => {
 });
 
 scaleSelect.addEventListener('change', () => {
-  // Reset to start when scale changes
   currentCol = 0;
 });
 
@@ -497,7 +469,6 @@ synthSelect.addEventListener('change', async () => {
   }
 });
 
-// Resize handling
 window.addEventListener('resize', () => {
   vizCanvas.width = vizCanvas.offsetWidth;
   if (isPlaying) updateScanLine(currentCol);
