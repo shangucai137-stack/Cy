@@ -123,9 +123,9 @@ select option{background:#1a1a2e;}
         <label><span>音色</span>
           <select id="synth-select">
             <option value="piano">钢琴</option>
-            <option value="synth">合成器</option>
-            <option value="marimba">马林巴</option>
             <option value="pad">弦乐垫</option>
+            <option value="marimba">马林巴</option>
+            <option value="synth">合成器</option>
           </select>
         </label>
       </div>
@@ -144,24 +144,13 @@ select option{background:#1a1a2e;}
 const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
 const SCALE_INTERVALS = {
-  major:     [0,2,4,5,7,9,11],
-  minor:     [0,2,3,5,7,8,10],
-  dorian:    [0,2,3,5,7,9,10],
-  mixolyd:   [0,2,4,5,7,9,10],
-  pentatonic:[0,2,4,7,9],
-  penta_m:   [0,3,5,7,10],
-  blues:     [0,3,5,6,7,10],
+  major:[0,2,4,5,7,9,11], minor:[0,2,3,5,7,8,10], dorian:[0,2,3,5,7,9,10],
+  mixolyd:[0,2,4,5,7,9,10], pentatonic:[0,2,4,7,9], penta_m:[0,3,5,7,10], blues:[0,3,5,6,7,10],
 };
 
-// Chord progressions as scale degree indices
 const PROGRESSIONS = {
-  major:     [0,4,5,3],   // I-V-vi-IV
-  minor:     [0,5,3,6],   // i-VI-iv-VII
-  dorian:    [0,3,0,4],   // i-IV-i-V
-  mixolyd:   [0,3,6,4],   // I-IV-VII-V
-  pentatonic:[0,2,0,4],
-  penta_m:   [0,3,0,4],
-  blues:     [0,3,4,0],   // I-IV-V-I
+  major:[0,4,5,3], minor:[0,5,3,6], dorian:[0,3,0,4],
+  mixolyd:[0,3,6,4], pentatonic:[0,2,0,4], penta_m:[0,3,0,4], blues:[0,3,4,0],
 };
 
 const MOOD_LABELS = {
@@ -169,125 +158,165 @@ const MOOD_LABELS = {
   melancholic:'🌙 忧郁', dark:'🌑 阴暗', mysterious:'🔮 神秘', tense:'⚡ 紧张',
 };
 
-function midiToName(m) { return NOTE_NAMES[m%12] + (Math.floor(m/12)-1); }
 function midiToFreq(m) { return 440 * Math.pow(2, (m-69)/12); }
+function midiToName(m) { return NOTE_NAMES[m%12] + (Math.floor(m/12)-1); }
 
 function analyzeImage(data, w, h) {
-  let sH=0,sS=0,sL=0,warm=0,n=0;
-  const step = Math.max(4, Math.floor(w*h/2000)), ls=[];
+  let sH=0,sS=0,sL=0,warm=0,n=0; const ls=[];
+  const step = Math.max(4, Math.floor(w*h/2000));
   for (let i=0; i<data.length; i+=step*4) {
     if (data[i+3]<10) continue;
     const r=data[i]/255, g=data[i+1]/255, b=data[i+2]/255;
     const mx=Math.max(r,g,b), mn=Math.min(r,g,b), d=mx-mn;
     const l=(mx+mn)/2, s=d===0?0:(l>.5?d/(2-mx-mn):d/(mx+mn));
-    let h=0;
-    if (d>0) switch(mx){case r:h=((g-b)/d+(g<b?6:0))/6;break;case g:h=((b-r)/d+2)/6;break;case b:h=((r-g)/d+4)/6;break;}
-    sH+=h; sS+=s; sL+=l; ls.push(l);
-    if (h<.15||h>.88) warm++;
+    let hh=0;
+    if(d>0) switch(mx){case r:hh=((g-b)/d+(g<b?6:0))/6;break;case g:hh=((b-r)/d+2)/6;break;case b:hh=((r-g)/d+4)/6;break;}
+    sH+=hh; sS+=s; sL+=l; ls.push(l);
+    if (hh<.15||hh>.88) warm++;
     n++;
   }
   if (!n) return null;
   const aH=sH/n, aS=sS/n, aL=sL/n, wr=warm/n;
   const contrast = Math.sqrt(ls.reduce((a,l)=>a+(l-aL)**2,0)/ls.length);
-
-  let mood, scale, root;
-  if      (aL>.62&&aS>.40)         {mood='joyful';    scale='major';     root=0;}
-  else if (aL>.55&&wr>.55)         {mood='warm';      scale='mixolyd';   root=7;}
-  else if (aL>.50&&aS<.22)         {mood='peaceful';  scale='pentatonic';root=5;}
-  else if (aS>.55&&contrast>.28)   {mood='tense';     scale='blues';     root=9;}
-  else if (aH>.55&&aH<.78)         {mood='mysterious';scale='dorian';    root=2;}
-  else if (aL<.38)                  {mood='dark';      scale='minor';     root=9;}
-  else                              {mood='melancholic';scale='penta_m';  root=4;}
-
-  root = (root + [0,0,2,2,0,-2,-2,0,2,2,0,0][Math.round(aH*11)%12] + 12) % 12;
-  const bpm = Math.max(52, Math.min(152, Math.round(60 + (aL*.5+contrast*1.5)*88)));
-  const isMin = ['minor','dorian','penta_m','blues'].includes(scale);
-  return {
-    mood, scale, root, bpm,
-    autoSpeed: Math.max(1,Math.min(10,Math.round(bpm/25))),
-    prog: PROGRESSIONS[scale],
-    keyLabel: NOTE_NAMES[root]+(isMin?'m':''),
-  };
+  let mood,scale,root;
+  if      (aL>.62&&aS>.40)       {mood='joyful';     scale='major';     root=0;}
+  else if (aL>.55&&wr>.55)       {mood='warm';        scale='mixolyd';   root=7;}
+  else if (aL>.50&&aS<.22)       {mood='peaceful';    scale='pentatonic';root=5;}
+  else if (aS>.55&&contrast>.28) {mood='tense';       scale='blues';     root=9;}
+  else if (aH>.55&&aH<.78)       {mood='mysterious';  scale='dorian';    root=2;}
+  else if (aL<.38)               {mood='dark';        scale='minor';     root=9;}
+  else                           {mood='melancholic';  scale='penta_m';  root=4;}
+  root=(root+[0,0,2,2,0,-2,-2,0,2,2,0,0][Math.round(aH*11)%12]+12)%12;
+  const bpm=Math.max(52,Math.min(152,Math.round(60+(aL*.5+contrast*1.5)*88)));
+  const isMin=['minor','dorian','penta_m','blues'].includes(scale);
+  return {mood,scale,root,bpm,autoSpeed:Math.max(1,Math.min(10,Math.round(bpm/25))),
+          prog:PROGRESSIONS[scale],keyLabel:NOTE_NAMES[root]+(isMin?'m':'')};
 }
 
-function buildScale(root, scaleName, octMin=4, octMax=6) {
-  const ivs = SCALE_INTERVALS[scaleName]||SCALE_INTERVALS.major;
-  const notes=[];
-  for (let o=octMin;o<=octMax;o++)
-    for (const iv of ivs) {const m=(o+1)*12+root+iv; notes.push({name:midiToName(m),freq:midiToFreq(m),midi:m});}
+function buildScale(root,scaleName,octMin=5,octMax=6) {
+  const ivs=SCALE_INTERVALS[scaleName]||SCALE_INTERVALS.major, notes=[];
+  for(let o=octMin;o<=octMax;o++) for(const iv of ivs){const m=(o+1)*12+root+iv; notes.push({name:midiToName(m),freq:midiToFreq(m),midi:m});}
   return notes.sort((a,b)=>a.midi-b.midi);
 }
 
-function getChord(degree, root, scaleName) {
-  const ivs = SCALE_INTERVALS[scaleName]||SCALE_INTERVALS.major, len=ivs.length;
-  const bassMidi = 4*12 + root + ivs[degree%len];
-  const harmony = [0,2,4].map(off=>{
-    const m=5*12+root+ivs[(degree+off)%len];
-    return {name:midiToName(m), freq:midiToFreq(m), midi:m};
+function getChord(degree,root,scaleName) {
+  const ivs=SCALE_INTERVALS[scaleName]||SCALE_INTERVALS.major, len=ivs.length;
+  const bassMidi=4*12+root+ivs[degree%len];
+  // Spread voicing: root in oct5, third in oct5, fifth in oct6 for openness
+  const steps=[0,2,4];
+  const harmony=steps.map((off,i)=>{
+    const oct=i<2?5:6;
+    const m=(oct+1)*12+root+ivs[(degree+off)%len];
+    return {name:midiToName(m),freq:midiToFreq(m),midi:m};
   });
-  return {bass:{freq:midiToFreq(bassMidi),name:midiToName(bassMidi)}, harmony};
+  return {bass:{freq:midiToFreq(bassMidi),name:midiToName(bassMidi)},harmony};
 }
 
 function effectiveScale() {
   const v=scaleSelect.value;
-  if (v==='auto') return imageAnalysis?.scale||'major';
+  if(v==='auto') return imageAnalysis?.scale||'major';
   return {major:'major',minor:'minor',pentatonic:'pentatonic',blues:'blues',dorian:'dorian'}[v]||'major';
 }
 
 // ─── Web Audio Engine ─────────────────────────────────────────
 let audioCtx=null, masterGain=null, analyserNode=null;
+let voiceCount=0;
+const MAX_VOICES=20;
+
+function makeImpulse(durSec, decay) {
+  const len=Math.floor(audioCtx.sampleRate*durSec);
+  const buf=audioCtx.createBuffer(2,len,audioCtx.sampleRate);
+  for(let c=0;c<2;c++){
+    const d=buf.getChannelData(c);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.exp(-decay*(i/audioCtx.sampleRate));
+  }
+  return buf;
+}
 
 function initAudio() {
   if (audioCtx) return;
-  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-  masterGain = audioCtx.createGain();
-  analyserNode = audioCtx.createAnalyser();
-  analyserNode.fftSize = 512;
-  masterGain.connect(analyserNode);
-  analyserNode.connect(audioCtx.destination);
+  audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+
+  // Dynamics compressor prevents clipping and smooths out peaks
+  const comp=audioCtx.createDynamicsCompressor();
+  comp.threshold.value=-14; comp.knee.value=8;
+  comp.ratio.value=4; comp.attack.value=0.004; comp.release.value=0.3;
+
+  masterGain=audioCtx.createGain(); masterGain.gain.value=0.55;
+  analyserNode=audioCtx.createAnalyser(); analyserNode.fftSize=512;
+
+  // Convolution reverb with synthetic impulse response
+  const conv=audioCtx.createConvolver();
+  conv.buffer=makeImpulse(2.5, 2.8);
+  const wetG=audioCtx.createGain(); wetG.gain.value=0.30;
+  const dryG=audioCtx.createGain(); dryG.gain.value=0.76;
+
+  // Signal chain: notes → masterGain → [dry + wet reverb] → compressor → analyser → out
+  masterGain.connect(dryG);
+  masterGain.connect(conv); conv.connect(wetG);
+  dryG.connect(comp); wetG.connect(comp);
+  comp.connect(analyserNode); analyserNode.connect(audioCtx.destination);
 }
 
 function resumeCtx() {
   return audioCtx?.state==='suspended' ? audioCtx.resume() : Promise.resolve();
 }
 
-const ADSR = {
-  piano:   {bass:{a:.03,d:.7,s:.2,r:1.5},  harmony:{a:.05,d:.5,s:.2,r:1},   melody:{a:.01,d:.4,s:.1,r:.8}},
-  synth:   {bass:{a:.05,d:.2,s:.5,r:.7},   harmony:{a:.05,d:.2,s:.4,r:.5},  melody:{a:.02,d:.2,s:.3,r:.4}},
-  marimba: {bass:{a:.005,d:.5,s:0,r:.5},   harmony:{a:.005,d:.3,s:0,r:.3},  melody:{a:.001,d:.2,s:0,r:.2}},
-  pad:     {bass:{a:.5,d:.3,s:.8,r:2.5},   harmony:{a:.4,d:.3,s:.7,r:2},    melody:{a:.2,d:.3,s:.5,r:1.5}},
-};
-const OSC_TYPE = {
-  piano:{bass:'triangle',harmony:'triangle',melody:'triangle'},
-  synth:{bass:'sawtooth',harmony:'square',melody:'sawtooth'},
-  marimba:{bass:'sine',harmony:'sine',melody:'sine'},
-  pad:{bass:'sine',harmony:'sine',melody:'sine'},
-};
-const LAYER_VOL = {bass:.72, harmony:.45, melody:.88};
+const LAYER_VOL={bass:0.68, harmony:0.36, melody:0.80};
 
+// All synthesis uses sine waves (or filtered triangle) — no sawtooth/square
 function playNote(freq, layer, dur, vel, when) {
-  if (!audioCtx||!masterGain) return;
-  const preset = synthSelect.value||'piano';
-  const env = (ADSR[preset]||ADSR.piano)[layer];
-  const oscType = (OSC_TYPE[preset]||OSC_TYPE.piano)[layer];
-  const vol = parseInt(volumeSlider.value)/100;
-  const peak = vel * LAYER_VOL[layer] * vol;
-  const sus = peak * env.s;
+  if(!audioCtx||!masterGain||voiceCount>=MAX_VOICES) return;
+  const preset=synthSelect.value||'piano';
+  const vol=parseInt(volumeSlider.value)/100;
+  const lv=LAYER_VOL[layer]*vol*vel;
+  const t0=Math.max(when, audioCtx.currentTime+0.002);
 
-  const t0 = Math.max(when, audioCtx.currentTime+.003);
-  const t1=t0+env.a, t2=t1+env.d, t3=t0+dur, t4=t3+env.r;
+  function voice(f, relG, waveType, atk, dec, sus, rel, cutoff) {
+    if(voiceCount>=MAX_VOICES) return;
+    voiceCount++;
+    const osc=audioCtx.createOscillator();
+    const filt=audioCtx.createBiquadFilter();
+    const g=audioCtx.createGain();
+    osc.type=waveType;
+    osc.frequency.setValueAtTime(f, t0);
+    filt.type='lowpass';
+    filt.frequency.value=cutoff||Math.min(8000,f*5);
+    filt.Q.value=0.6;
+    const peak=lv*relG, sv=peak*sus;
+    const t1=t0+atk, t2=t1+dec, t3=t0+dur, t4=t3+rel;
+    g.gain.setValueAtTime(0.0001,t0);
+    g.gain.linearRampToValueAtTime(peak,t1);
+    g.gain.linearRampToValueAtTime(sv>0.0001?sv:0.0001,t2);
+    if(sv>0.0001) g.gain.setValueAtTime(sv,t3);
+    g.gain.linearRampToValueAtTime(0.0001,t4);
+    osc.connect(filt); filt.connect(g); g.connect(masterGain);
+    osc.start(t0); osc.stop(t4+0.06);
+    osc.onended=()=>{voiceCount=Math.max(0,voiceCount-1);};
+  }
 
-  const osc = audioCtx.createOscillator();
-  const g   = audioCtx.createGain();
-  osc.type = oscType;
-  osc.frequency.setValueAtTime(freq, t0);
-  g.gain.setValueAtTime(.0001, t0);
-  g.gain.linearRampToValueAtTime(peak, t1);
-  g.gain.linearRampToValueAtTime(sus>.001?sus:.0001, t2);
-  if (sus>.001) g.gain.setValueAtTime(sus, t3);
-  g.gain.linearRampToValueAtTime(.0001, t4);
-  osc.connect(g); g.connect(masterGain);
-  osc.start(t0); osc.stop(t4+.05);
+  if(preset==='piano') {
+    // Additive sine harmonics → warm, piano-like, not harsh
+    voice(freq,    1.00,'sine',0.004,0.60,0.04,1.6,freq*6);
+    voice(freq*2,  0.40,'sine',0.004,0.35,0.02,1.1,freq*12);
+    voice(freq*3,  0.15,'sine',0.003,0.22,0,   0.7,freq*16);
+    voice(freq*4,  0.05,'sine',0.002,0.14,0,   0.4,freq*20);
+  } else if(preset==='pad') {
+    // Slightly detuned sine trio → chorus/ensemble warmth, slow attack
+    const dt=0.018;
+    voice(freq,        0.50,'sine',0.55,0.20,0.80,2.8,freq*4);
+    voice(freq*(1+dt), 0.38,'sine',0.65,0.20,0.70,3.0,freq*4);
+    voice(freq*(1-dt), 0.38,'sine',0.60,0.20,0.70,3.0,freq*4);
+    voice(freq*2,      0.18,'sine',0.55,0.30,0.50,2.2,freq*7);
+  } else if(preset==='marimba') {
+    // Sine + slightly inharmonic partial (real marimba characteristic)
+    voice(freq,      1.00,'sine',0.002,0.24,0,0.24,freq*8);
+    voice(freq*3.93, 0.28,'sine',0.002,0.11,0,0.11,freq*16);
+  } else {
+    // Synth: triangle wave (half the harmonic energy of sawtooth) + lowpass
+    voice(freq, 0.90,'triangle',0.018,0.14,0.40,0.55,Math.min(2600,freq*5));
+    voice(freq, 0.20,'sine',    0.012,0.22,0.30,0.70,freq*4); // sub for body
+  }
 }
 
 // ─── DOM ──────────────────────────────────────────────────────
@@ -312,17 +341,20 @@ const infoPos=document.getElementById('info-pos');
 const infoChord=document.getElementById('info-chord');
 const moodPanel=document.getElementById('mood-panel');
 
-const ctx  = mainCanvas.getContext('2d',{willReadFrequently:true});
-const octx = overlayCanvas.getContext('2d');
-const vctx = vizCanvas.getContext('2d');
+const ctx=mainCanvas.getContext('2d',{willReadFrequently:true});
+const octx=overlayCanvas.getContext('2d');
+const vctx=vizCanvas.getContext('2d');
 
 let imgData=null, imgW=0, imgH=0;
 let isPlaying=false, currentCol=0;
-let animFrame=null, stepInterval=null;
+let animFrame=null, stepTimeout=null;
 let startTime=0, elapsedMs=0;
 let imageAnalysis=null;
 
-// ─── Image loading ────────────────────────────────────────────
+// Melody state: rate-limit and deduplicate melody notes
+let lastMelodyIdx=-1, lastMelodyCol=-999;
+
+// ─── Image Loading ─────────────────────────────────────────────
 uploadZone.addEventListener('click',()=>fileInput.click());
 uploadZone.addEventListener('dragover',e=>{e.preventDefault();uploadZone.classList.add('drag-over');});
 uploadZone.addEventListener('dragleave',()=>uploadZone.classList.remove('drag-over'));
@@ -339,12 +371,12 @@ document.querySelectorAll('.sample-btn').forEach(btn=>
 function loadSample(type) {
   const c=document.createElement('canvas'); c.width=400; c.height=200;
   const g=c.getContext('2d');
-  if (type==='gradient') {
+  if(type==='gradient') {
     const gr=g.createLinearGradient(0,0,400,200);
     gr.addColorStop(0,'#7c3aed');gr.addColorStop(.33,'#06b6d4');gr.addColorStop(.66,'#f59e0b');gr.addColorStop(1,'#ef4444');
     g.fillStyle=gr; g.fillRect(0,0,400,200);
     for(let i=0;i<2000;i++){g.fillStyle=`rgba(255,255,255,${Math.random()*.25})`;g.fillRect(Math.random()*400,Math.random()*200,2,2);}
-  } else if (type==='sunset') {
+  } else if(type==='sunset') {
     const sk=g.createLinearGradient(0,0,0,200);
     sk.addColorStop(0,'#1a0533');sk.addColorStop(.4,'#c2410c');sk.addColorStop(.7,'#f59e0b');sk.addColorStop(1,'#fbbf24');
     g.fillStyle=sk; g.fillRect(0,0,400,200);
@@ -374,9 +406,8 @@ function loadImageFile(file) {
     ctx.drawImage(img,0,0,w,h);
     imgData=ctx.getImageData(0,0,w,h); imgW=w; imgH=h;
     URL.revokeObjectURL(url);
-
     imageAnalysis=analyzeImage(imgData.data,imgW,imgH);
-    if (imageAnalysis) {
+    if(imageAnalysis) {
       document.getElementById('mood-label').textContent=MOOD_LABELS[imageAnalysis.mood]||imageAnalysis.mood;
       document.getElementById('key-label').textContent='♩ '+imageAnalysis.keyLabel;
       document.getElementById('bpm-label').textContent=imageAnalysis.bpm+' BPM';
@@ -393,17 +424,17 @@ function loadImageFile(file) {
 
 // ─── Playback ─────────────────────────────────────────────────
 playBtn.addEventListener('click',async()=>{
-  if (!imgData) return;
-  if (isPlaying) { pausePlayback(); return; }
+  if(!imgData) return;
+  if(isPlaying){pausePlayback();return;}
   try {
     initAudio();
     await resumeCtx();
     startPlayback();
   } catch(e) {
-    alert('音频启动失败：'+e.message+'\n请确认浏览器允许播放音频。');
+    alert('音频启动失败：'+e.message);
   }
 });
-stopBtn.addEventListener('click', stopPlayback);
+stopBtn.addEventListener('click',stopPlayback);
 changeBtn.addEventListener('click',()=>{
   stopPlayback();
   workspace.classList.add('hidden');
@@ -422,14 +453,15 @@ function startPlayback() {
 function pausePlayback() {
   isPlaying=false; elapsedMs=performance.now()-startTime;
   playBtn.textContent='▶ 播放';
-  clearTimeout(stepInterval); cancelAnimationFrame(animFrame);
+  clearTimeout(stepTimeout); cancelAnimationFrame(animFrame);
   audioCtx?.suspend();
 }
 
 function stopPlayback() {
-  isPlaying=false; elapsedMs=0; currentCol=0;
+  isPlaying=false; elapsedMs=0; currentCol=0; voiceCount=0;
+  lastMelodyIdx=-1; lastMelodyCol=-999;
   playBtn.textContent='▶ 播放';
-  clearTimeout(stepInterval); cancelAnimationFrame(animFrame);
+  clearTimeout(stepTimeout); cancelAnimationFrame(animFrame);
   scanLine.style.transform='translateX(-10px)';
   scanLine.classList.remove('active');
   octx?.clearRect(0,0,overlayCanvas.width,overlayCanvas.height);
@@ -439,57 +471,66 @@ function stopPlayback() {
 function msPerStep() { return Math.round(300/parseInt(speedSlider.value)); }
 
 function scheduleStep() {
-  if (!isPlaying) return;
+  if(!isPlaying) return;
   processColumn(currentCol);
   currentCol++;
-  if (currentCol>=imgW) {currentCol=0; elapsedMs=0; startTime=performance.now();}
-  stepInterval=setTimeout(scheduleStep, msPerStep());
+  if(currentCol>=imgW){currentCol=0;elapsedMs=0;startTime=performance.now();}
+  stepTimeout=setTimeout(scheduleStep, msPerStep());
 }
 
 // ─── Pixel → Music ────────────────────────────────────────────
 function processColumn(col) {
-  if (!imgData||!audioCtx) return;
+  if(!imgData||!audioCtx) return;
 
-  const scaleName = effectiveScale();
-  const root = imageAnalysis?.root??0;
-  const prog = PROGRESSIONS[scaleName]||PROGRESSIONS.major;
-  const colsPerChord = Math.max(8, Math.min(150, Math.floor(imgW/(prog.length*2))));
-  const degree = prog[Math.floor(col/colsPerChord) % prog.length];
-  const isChordChange = (col % colsPerChord === 0);
+  const scaleName=effectiveScale();
+  const root=imageAnalysis?.root??0;
+  const prog=PROGRESSIONS[scaleName]||PROGRESSIONS.major;
+  // Each chord lasts for a musically meaningful number of columns
+  const colsPerChord=Math.max(16,Math.min(240,Math.floor(imgW/(prog.length*2))));
+  const degree=prog[Math.floor(col/colsPerChord)%prog.length];
+  const isChordChange=(col%colsPerChord===0);
 
-  const data=imgData.data, rs=Math.max(1,Math.floor(imgH/16));
-  let sumL=0, maxL=0, maxRow=Math.floor(imgH/2), cnt=0;
-  for (let row=0; row<imgH; row+=rs) {
+  // Sample this column for brightness
+  const data=imgData.data, rs=Math.max(1,Math.floor(imgH/20));
+  let sumL=0,maxL=0,maxRow=Math.floor(imgH/2),cnt=0;
+  for(let row=0;row<imgH;row+=rs){
     const i=(row*imgW+col)*4;
-    const l=(Math.max(data[i]/255,data[i+1]/255,data[i+2]/255)+Math.min(data[i]/255,data[i+1]/255,data[i+2]/255))/2;
+    const r=data[i]/255,g=data[i+1]/255,b=data[i+2]/255;
+    const l=(Math.max(r,g,b)+Math.min(r,g,b))/2;
     sumL+=l; cnt++;
-    if (l>maxL) {maxL=l; maxRow=row;}
+    if(l>maxL){maxL=l;maxRow=row;}
   }
   const avgL=cnt?sumL/cnt:0;
-  if (avgL<.05) { updateVisual(col,[]); return; }
+  if(avgL<0.04){updateVisual(col,[]);return;}
 
-  const dur=msPerStep()/1000;
+  const step=msPerStep()/1000;
   const now=audioCtx.currentTime;
   const {bass,harmony}=getChord(degree,root,scaleName);
+  const chordDur=colsPerChord*step;
 
-  // Bass: plays on chord change
-  if (isChordChange && avgL>.1)
-    playNote(bass.freq, 'bass', dur*3, Math.min(1,avgL*.9), now);
+  // Bass: fires only on chord change, rings for the full chord duration
+  if(isChordChange&&avgL>0.08)
+    playNote(bass.freq,'bass',chordDur*0.88,Math.min(1,avgL*0.82),now);
 
-  // Harmony: chord tones gated by brightness
-  if (avgL>.16)
+  // Harmony: fires only on chord change with a rolled (arpeggiated) onset
+  // This sounds much more musical than stabbing all 3 notes every column
+  if(isChordChange&&avgL>0.10)
     harmony.forEach(({freq},i)=>
-      playNote(freq,'harmony',dur*1.8,Math.min(1,.2+avgL*.45),now+i*.012));
+      playNote(freq,'harmony',chordDur*0.84,Math.min(1,0.08+avgL*0.36),now+i*0.055));
 
-  // Melody: brightest pixel row → scale note in upper register
-  if (maxL>.22) {
-    const mel=buildScale(root,scaleName,5,7);
+  // Melody: rate-limited to ~300ms minimum between notes, only retriggers on note change
+  const minMelCols=Math.max(2,Math.ceil(300/msPerStep()));
+  if(maxL>0.18&&col-lastMelodyCol>=minMelCols){
+    const mel=buildScale(root,scaleName,5,6);
     const idx=Math.max(0,Math.min(mel.length-1,Math.round((1-maxRow/imgH)*(mel.length-1))));
-    playNote(mel[idx].freq,'melody',dur*.7,Math.min(1,maxL*.92),now+.025);
+    // Allow same note to retrigger only after 3× the minimum interval
+    if(idx!==lastMelodyIdx||col-lastMelodyCol>=minMelCols*3){
+      playNote(mel[idx].freq,'melody',step*minMelCols*0.80,Math.min(1,maxL*0.85),now);
+      lastMelodyIdx=idx; lastMelodyCol=col;
+    }
   }
 
-  updateVisual(col, harmony);
-
+  updateVisual(col,harmony);
   const ms=performance.now()-startTime, s=Math.floor(ms/1000), m=Math.floor(s/60);
   infoTime.textContent=`${String(m).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
   infoPos.textContent=`列 ${col+1} / ${imgW}`;
@@ -501,7 +542,7 @@ function updateVisual(col, harmony) {
   const x=(wrapper.offsetWidth-mainCanvas.offsetWidth)/2+(col/imgW)*mainCanvas.offsetWidth;
   scanLine.style.transform=`translateX(${x}px)`;
   octx.clearRect(0,0,imgW,imgH);
-  octx.fillStyle='rgba(255,255,255,.1)'; octx.fillRect(col,0,1,imgH);
+  octx.fillStyle='rgba(255,255,255,.08)'; octx.fillRect(col,0,1,imgH);
   harmony.forEach(({midi})=>{
     const py=(1-Math.max(0,Math.min(1,(midi-60)/36)))*imgH;
     octx.beginPath(); octx.arc(col,py,4,0,Math.PI*2);
@@ -512,28 +553,31 @@ function updateVisual(col, harmony) {
 
 // ─── Visualizer ───────────────────────────────────────────────
 function drawViz() {
-  if (!isPlaying) return;
+  if(!isPlaying) return;
   animFrame=requestAnimationFrame(drawViz);
   vizCanvas.width=vizCanvas.offsetWidth;
   const W=vizCanvas.width, H=vizCanvas.height;
   vctx.fillStyle='rgba(0,0,0,.35)'; vctx.fillRect(0,0,W,H);
-  if (!analyserNode) return;
+  if(!analyserNode) return;
   const buf=new Float32Array(analyserNode.fftSize);
   analyserNode.getFloatTimeDomainData(buf);
   const grad=vctx.createLinearGradient(0,0,W,0);
-  grad.addColorStop(0,'#7c3aed'); grad.addColorStop(.5,'#06b6d4'); grad.addColorStop(1,'#f59e0b');
+  grad.addColorStop(0,'#7c3aed');grad.addColorStop(.5,'#06b6d4');grad.addColorStop(1,'#f59e0b');
   vctx.strokeStyle=grad; vctx.lineWidth=2; vctx.beginPath();
-  for (let i=0;i<buf.length;i++){const x=(i/buf.length)*W,y=((buf[i]+1)/2)*H;i===0?vctx.moveTo(x,y):vctx.lineTo(x,y);}
+  for(let i=0;i<buf.length;i++){const x=(i/buf.length)*W,y=((buf[i]+1)/2)*H;i===0?vctx.moveTo(x,y):vctx.lineTo(x,y);}
   vctx.stroke();
-  vctx.globalAlpha=.25; vctx.beginPath();
-  for (let i=0;i<buf.length;i++){const x=(i/buf.length)*W,y=H-((buf[i]+1)/2)*H;i===0?vctx.moveTo(x,y):vctx.lineTo(x,y);}
+  vctx.globalAlpha=.20; vctx.beginPath();
+  for(let i=0;i<buf.length;i++){const x=(i/buf.length)*W,y=H-((buf[i]+1)/2)*H;i===0?vctx.moveTo(x,y):vctx.lineTo(x,y);}
   vctx.stroke(); vctx.globalAlpha=1;
 }
 
 // ─── Controls ─────────────────────────────────────────────────
 speedSlider.addEventListener('input',()=>speedVal.textContent=speedSlider.value);
-volumeSlider.addEventListener('input',()=>volumeVal.textContent=volumeSlider.value+'%');
-scaleSelect.addEventListener('change',()=>currentCol=0);
+volumeSlider.addEventListener('input',()=>{
+  volumeVal.textContent=volumeSlider.value+'%';
+  if(masterGain) masterGain.gain.setTargetAtTime(parseInt(volumeSlider.value)/100*0.55, audioCtx.currentTime, 0.05);
+});
+scaleSelect.addEventListener('change',()=>{currentCol=0;lastMelodyIdx=-1;lastMelodyCol=-999;});
 window.addEventListener('resize',()=>vizCanvas.width=vizCanvas.offsetWidth);
 </script>
 </body>
